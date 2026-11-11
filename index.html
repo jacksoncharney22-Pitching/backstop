@@ -40,7 +40,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
 
 /* idle backdrop: home plate from the catcher's view, drawn in chalk */
 #idle {
-  position: absolute; inset: 0; display: grid; place-items: center; overflow: auto;
+  position: absolute; inset: 0; display: grid; place-items: center; place-items: safe center; overflow: auto;
   padding: calc(var(--gt) + 56px) var(--gr) calc(var(--gb) + 196px) var(--gl);
   background:
     radial-gradient(70% 55% at 50% 100%, rgba(224,138,82,.20), transparent 70%),
@@ -134,6 +134,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
 
 #toast { position: fixed; z-index: 40; left: 50%; top: calc(var(--gt) + 52px); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 9px 14px; border-radius: 12px; font-weight: 600; max-width: calc(100% - 32px); text-align: center; }
 @media (prefers-reduced-motion: reduce) { .pill.on .dot { animation: none; } #go i, .top, .dock { transition: none; } }
+@media (max-height: 760px) { .plate { display: none; } }
+@media (max-height: 640px) { .card .tip { display: none; } }
 @media (max-height: 520px) { .card .tip { display: none; } .plate { width: 56px; height: 56px; } #idle { padding-top: calc(var(--gt) + 48px); padding-bottom: calc(var(--gb) + 180px); } }
 </style></head><body>
 
