@@ -4,11 +4,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
-/* Layout: full-bleed camera app. Delayed picture fills the screen; a status bar floats on top, a control dock floats at the bottom, settings slide up as a sheet. */
+/* Layout: full-bleed camera app. The picture fills the screen; a status bar floats on top, a control dock floats at the bottom, settings slide up as a sheet. */
 :root {
   --bg: #07090a;
   --glass: rgba(14, 18, 16, 0.62);
-  --glass-hi: rgba(30, 38, 34, 0.78);
+  --glass-hi: rgba(30, 38, 34, 0.80);
   --line: rgba(238, 242, 236, 0.14);
   --fg: #f2f5f0;            /* chalk */
   --muted: #a3b0a8;
@@ -16,6 +16,7 @@
   --clay-deep: #c06d37;
   --ink: #1a0e06;
   --live: #ff4d3d;
+  --ok: #6fdc95;
   --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --gl: max(16px, env(safe-area-inset-left, 0px));
@@ -38,17 +39,16 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
 .mirror { transform: scaleX(-1); }
 #cam { position: absolute; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; }
 
-/* idle backdrop: home plate from the catcher's view, drawn in chalk */
 #idle {
   position: absolute; inset: 0; display: grid; place-items: center; place-items: safe center; overflow: auto;
-  padding: calc(var(--gt) + 56px) var(--gr) calc(var(--gb) + 196px) var(--gl);
+  padding: calc(var(--gt) + 56px) var(--gr) calc(var(--gb) + 236px) var(--gl);
   background:
     radial-gradient(70% 55% at 50% 100%, rgba(224,138,82,.20), transparent 70%),
     radial-gradient(60% 50% at 50% 0%, rgba(120,150,130,.10), transparent 70%),
     var(--bg);
 }
 .card { width: min(460px, 100%); display: grid; gap: 18px; justify-items: center; text-align: center; }
-.plate { width: 88px; height: 88px; }
+.plate { width: 80px; height: 80px; }
 .card h1 { margin: 0; font: 700 clamp(40px, 9vw, 64px)/0.92 var(--display); letter-spacing: .02em; text-transform: uppercase; text-wrap: balance; }
 .card h1 em { font-style: normal; color: var(--clay); }
 .card p { margin: 0; color: var(--muted); max-width: 38ch; }
@@ -58,10 +58,30 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
 .err { color: #ffb3a9 !important; }
 .open { display: inline-flex; align-items: center; height: 52px; padding: 0 24px; border-radius: 16px; background: var(--clay); color: var(--ink); text-decoration: none; font: 700 20px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
 
-/* countdown */
-#wait { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 6px; pointer-events: none; background: rgba(0,0,0,.35); }
-#wait b { font: 700 clamp(96px, 26vw, 220px)/0.9 var(--display); font-variant-numeric: tabular-nums; }
-#wait span { font: 600 16px/1 var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+/* big center overlays */
+.big { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 6px; pointer-events: none; }
+.big b { font: 700 clamp(96px, 26vw, 220px)/0.9 var(--display); font-variant-numeric: tabular-nums; }
+.big span { font: 600 16px/1 var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+#wait { background: rgba(0,0,0,.35); }
+#watching { align-content: end; padding-bottom: calc(var(--gb) + 250px); }
+#watching span { display: inline-block; padding: 10px 16px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line); color: var(--fg); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+
+/* detection area editor */
+#zone { position: absolute; z-index: 4; border: 2px dashed var(--clay); border-radius: 10px; background: rgba(224,138,82,.10); touch-action: none; cursor: move; }
+#zone .h { position: absolute; width: 28px; height: 28px; right: -14px; bottom: -14px; border-radius: 50%; background: var(--clay); border: 3px solid var(--fg); cursor: nwse-resize; touch-action: none; }
+#zone .tag { position: absolute; left: 8px; top: 8px; font: 700 13px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--clay); text-shadow: 0 1px 6px rgba(0,0,0,.8); pointer-events: none; }
+#zoneBar {
+  position: absolute; z-index: 6; left: 50%; transform: translateX(-50%); top: calc(var(--gt) + 52px); width: min(440px, calc(100% - 32px));
+  display: grid; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--glass-hi); border: 1px solid var(--line); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+}
+#zoneBar p { margin: 0; font-size: 14px; color: var(--muted); }
+.meter { position: relative; height: 10px; border-radius: 5px; background: rgba(255,255,255,.08); overflow: hidden; }
+.meter i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--ok); border-radius: 5px; }
+.meter.hot i { background: var(--live); }
+.meter u { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--fg); }
+.zrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.zrow small { font: 600 12px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.done { height: 40px; padding: 0 18px; border-radius: 12px; background: var(--fg); color: var(--bg); font: 700 16px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; }
 
 /* ---------- top bar ---------- */
 .top {
@@ -78,6 +98,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
 }
 .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .pill.on .dot { background: var(--live); box-shadow: 0 0 0 4px rgba(255,77,61,.22); animation: pulse 1.6s ease-in-out infinite; }
+.pill.watch .dot { background: var(--ok); box-shadow: 0 0 0 4px rgba(111,220,149,.2); }
 .pill .num { color: var(--clay); }
 @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(255,77,61,0); } }
 .roundbtn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
@@ -89,22 +110,22 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
   position: absolute; left: 50%; bottom: var(--gb); z-index: 5; transform: translateX(-50%);
   width: min(560px, calc(100% - 32px)); display: grid; gap: 12px; justify-items: center; transition: opacity .35s ease, transform .35s ease;
 }
-.delays {
+.chips {
   display: flex; gap: 2px; padding: 4px; border-radius: 999px; max-width: 100%; overflow-x: auto; scrollbar-width: none;
   background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
 }
-.delays::-webkit-scrollbar { display: none; }
-.delays button { min-width: 48px; height: 34px; padding: 0 10px; border-radius: 999px; font: 700 16px/1 var(--display); letter-spacing: .04em; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
-.delays button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.chips::-webkit-scrollbar { display: none; }
+.chips button { min-width: 48px; height: 34px; padding: 0 12px; border-radius: 999px; font: 700 16px/1 var(--display); letter-spacing: .05em; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; white-space: nowrap; }
+.chips button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.modes button { text-transform: uppercase; letter-spacing: .1em; min-width: 120px; }
+.autorow { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.grab { height: 42px; padding: 0 16px; border-radius: 999px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font: 700 15px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 8px; }
+.grab svg { width: 18px; height: 18px; }
 .row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; }
 .row .l { justify-self: start; } .row .r { justify-self: end; }
 .side { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 .side svg { width: 24px; height: 24px; }
-.side small { display: block; }
-#go {
-  width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; position: relative;
-  border: 4px solid var(--fg); background: rgba(0,0,0,.2);
-}
+#go { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; border: 4px solid var(--fg); background: rgba(0,0,0,.2); }
 #go i { width: 64px; height: 64px; border-radius: 50%; background: var(--clay); display: grid; place-items: center; color: var(--ink); transition: all .2s ease; }
 #go i svg { width: 28px; height: 28px; margin-left: 4px; }
 #go.on i { width: 34px; height: 34px; border-radius: 8px; background: var(--live); }
@@ -112,7 +133,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
 #go:active i { transform: scale(.94); }
 .label { font: 600 12px/1 var(--display); letter-spacing: .18em; text-transform: uppercase; color: var(--muted); text-shadow: 0 1px 6px rgba(0,0,0,.7); }
 
-.hideui .top, .hideui .dock { opacity: 0; pointer-events: none; }
+.hideui .top, .hideui .dock, .hideui #watching { opacity: 0; pointer-events: none; }
 .hideui .dock { transform: translateX(-50%) translateY(12px); }
 
 /* ---------- settings sheet ---------- */
@@ -122,21 +143,23 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
   background: var(--glass-hi); border: 1px solid var(--line); border-bottom: 0; backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4);
   padding: 10px var(--gr) var(--gb) var(--gl); display: grid; gap: 18px;
 }
-.grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); justify-self: center; }
+.handlebar { width: 40px; height: 5px; border-radius: 3px; background: var(--line); justify-self: center; }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; }
 .sheet h2 { margin: 0; font: 700 24px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
+.sheet h3 { margin: 6px 0 -6px; font: 700 15px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--clay); }
 .set { display: grid; gap: 8px; }
 .set .lbl { font: 600 12px/1 var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
 .sheet .hint { margin: 0; color: var(--muted); font-size: 13px; }
 .seg { display: flex; padding: 3px; border-radius: 12px; background: rgba(0,0,0,.3); border: 1px solid var(--line); }
 .seg button { flex: 1; height: 38px; border-radius: 9px; font: 700 16px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.wide { height: 44px; border-radius: 12px; background: rgba(255,255,255,.08); border: 1px solid var(--line); font: 700 16px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; }
 
 #toast { position: fixed; z-index: 40; left: 50%; top: calc(var(--gt) + 52px); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 9px 14px; border-radius: 12px; font-weight: 600; max-width: calc(100% - 32px); text-align: center; }
 @media (prefers-reduced-motion: reduce) { .pill.on .dot { animation: none; } #go i, .top, .dock { transition: none; } }
-@media (max-height: 760px) { .plate { display: none; } }
-@media (max-height: 640px) { .card .tip { display: none; } }
-@media (max-height: 520px) { .card .tip { display: none; } .plate { width: 56px; height: 56px; } #idle { padding-top: calc(var(--gt) + 48px); padding-bottom: calc(var(--gb) + 180px); } }
+@media (max-height: 820px) { .plate { display: none; } }
+@media (max-height: 700px) { .card .tip { display: none; } }
+@media (max-height: 520px) { #idle { padding-top: calc(var(--gt) + 48px); padding-bottom: calc(var(--gb) + 200px); } .card p { display: none; } }
 </style></head><body>
 
 <div id="stage">
@@ -146,15 +169,24 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
   <div id="idle">
     <div class="card">
       <svg class="plate" viewBox="0 0 64 64" aria-hidden="true"><path d="M8 10h48v22L32 56 8 32z" fill="none" stroke="#f2f5f0" stroke-width="3.5" stroke-linejoin="round"/><circle cx="32" cy="30" r="7" fill="#e08a52"/></svg>
-      <h1>See it <em id="h1Delay">2 seconds</em> later</h1>
-      <p id="idleCopy">Press play and the screen keeps showing what happened a moment ago. Catch the pitch, look up and watch the rep.</p>
-      <div class="tip"><b>Setup</b><span id="setupCopy">Tripod or fence mount 10 to 15 feet off the first-base or third-base side, at about chest height.</span></div>
+      <h1 id="idleTitle">Every pitch, <em>replayed</em></h1>
+      <p id="idleCopy"></p>
+      <div class="tip"><b>Setup</b><span id="setupCopy"></span></div>
       <a class="open" id="openApp" href="https://jacksoncharney22-pitching.github.io/backstop/" target="_blank" rel="noopener" hidden>Open Backstop</a>
       <p class="err" id="err" hidden></p>
     </div>
   </div>
 
-  <div id="wait" hidden><b id="waitNum">2</b><span>Starting</span></div>
+  <div class="big" id="wait" hidden><b id="waitNum">2</b><span>Starting</span></div>
+  <div class="big" id="watching" hidden><span>Watching for the first pitch</span></div>
+
+  <div id="zone" hidden><span class="tag">Detection area</span><span class="h" id="zoneH"></span></div>
+  <div id="zoneBar" hidden>
+    <p>Drag the box over the glove and plate. Resize it from the corner. Movement inside the box starts a replay.</p>
+    <div class="zrow"><small>Movement</small><small id="zoneState">Quiet</small></div>
+    <div class="meter" id="meter"><i id="meterFill"></i><u id="meterMark"></u></div>
+    <div class="zrow"><div class="seg" id="segSens2" style="flex:1"></div><button class="done" id="zoneDone">Done</button></div>
+  </div>
 
   <div class="top">
     <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 10h48v22L32 56 8 32z" fill="none" stroke="#f2f5f0" stroke-width="5" stroke-linejoin="round"/><circle cx="32" cy="30" r="8" fill="#e08a52"/></svg>Backstop</div>
@@ -165,7 +197,12 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
   </div>
 
   <div class="dock">
-    <div class="delays" id="delays" role="group" aria-label="Delay"></div>
+    <div class="chips modes" id="modes" role="group" aria-label="Mode"></div>
+    <div class="chips" id="delays" role="group" aria-label="Delay"></div>
+    <div class="autorow" id="autorow">
+      <div class="chips" id="speeds" role="group" aria-label="Replay speed"></div>
+      <button class="grab" id="grabBtn" aria-label="Replay the last 4 seconds"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>Last 4 s</button>
+    </div>
     <div class="row">
       <button class="side l" id="flipCam" aria-label="Switch camera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9.5 13.5a2.5 2.5 0 0 0 4.6 1.3M14.5 12.5a2.5 2.5 0 0 0-4.6-1.3"/><path d="M14.5 10v2.5H12M9.5 16v-2.5H12"/></svg></button>
       <button id="go" aria-label="Play"><i><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z" fill="currentColor"/></svg></i></button>
@@ -177,13 +214,19 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
 
 <div class="scrim" id="settings" hidden>
   <div class="sheet" role="dialog" aria-label="Settings">
-    <div class="grab"></div>
+    <div class="handlebar"></div>
     <div class="sheet-head"><h2>Settings</h2><button class="roundbtn" id="closeSet" aria-label="Close">✕</button></div>
     <div class="set"><span class="lbl">Who's training</span><div class="seg" id="segRole"></div></div>
+    <h3>Auto replay</h3>
+    <div class="set"><span class="lbl">Pitch detection</span><div class="seg" id="segSens"></div>
+      <p class="hint">Raise it if pitches get missed. Lower it if replays start when nobody threw.</p></div>
+    <button class="wide" id="zoneBtn">Set detection area</button>
+    <div class="set"><span class="lbl">Pause between replays</span><div class="seg" id="segGap"></div></div>
+    <h3>Picture</h3>
     <div class="set"><span class="lbl">Camera</span><div class="seg" id="segCam"></div></div>
     <div class="set"><span class="lbl">Flip image</span><div class="seg" id="segFlip"></div>
       <p class="hint">Off shows you the way a coach sees you, so a right-handed player looks right-handed.</p></div>
-    <div class="set"><span class="lbl">Picture</span><div class="seg" id="segFit"></div>
+    <div class="set"><span class="lbl">Size</span><div class="seg" id="segFit"></div>
       <p class="hint">Fill crops the edges so the picture covers the whole screen.</p></div>
     <p class="hint">Tap the screen to show the controls while it's running. On a Mac, Space starts and stops.</p>
   </div>
@@ -195,27 +238,47 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
 const $ = (s) => document.querySelector(s);
 const cam = $("#cam"), view = $("#view"), vctx = view.getContext("2d");
 const cap = document.createElement("canvas"), cctx = cap.getContext("2d");
+const mot = document.createElement("canvas"), mctx = mot.getContext("2d", { willReadFrequently: true });
+const stageEl = $("#stage");
 
 const ls = {
   get(k, d) { try { const x = localStorage.getItem("backstop." + k); return x == null ? d : JSON.parse(x); } catch { return d; } },
   set(k, x) { try { localStorage.setItem("backstop." + k, JSON.stringify(x)); } catch {} },
 };
-const old = ls.get("prefs3", {});
-const P = Object.assign({ delay: old.dDelay || 2, facing: old.facing || "environment", flip: !!old.dMirror, role: old.role || "catcher", fill: false }, ls.get("delay", {}));
-const save = () => ls.set("delay", P);
+const P = Object.assign(
+  { mode: "auto", delay: 2, facing: "environment", flip: false, role: "catcher", fill: false, sens: "med", speed: 1, gap: 0.5, zone: { x: 0.2, y: 0.15, w: 0.6, h: 0.75 } },
+  ls.get("delay", {}), ls.get("auto", {})
+);
+const save = () => { ls.set("delay", { delay: P.delay, facing: P.facing, flip: P.flip, role: P.role, fill: P.fill }); ls.set("auto", { mode: P.mode, sens: P.sens, speed: P.speed, gap: P.gap, zone: P.zone }); };
 const inFrame = (() => { try { return window.self !== window.top; } catch { return true; } })();
 
 let toastT;
 function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2400); }
-
-const ROLE = {
-  catcher: { idle: "Press play and the screen keeps showing what happened a moment ago. Catch the pitch, look up and watch the rep.", setup: "Tripod or fence mount 10 to 15 feet off the first-base or third-base side, at about chest height." },
-  hitter: { idle: "Press play and the screen keeps showing what happened a moment ago. Take your swing, look up and watch it.", setup: "Tripod 8 to 12 feet away on your open side (first-base side for a righty), facing your chest at about waist height." },
-};
 const secs = (d) => d + (d === 1 ? " second" : " seconds");
 
+const COPY = {
+  auto: {
+    catcher: "Press play and catch. Each time a pitch comes in, Backstop replays that catch over and over until the next pitch arrives.",
+    hitter: "Press play and swing. Each time you swing, Backstop replays that swing over and over until the next one.",
+  },
+  delay: {
+    catcher: "Press play and the screen keeps showing what happened {d} ago. Catch the pitch, look up and watch the rep.",
+    hitter: "Press play and the screen keeps showing what happened {d} ago. Take your swing, look up and watch it.",
+  },
+  setup: {
+    catcher: "Tripod or fence mount 10 to 15 feet off the first-base or third-base side, at about chest height.",
+    hitter: "Tripod 8 to 12 feet away on your open side (first-base side for a righty), facing your chest at about waist height.",
+  },
+};
+const SENS = { low: 0.03, med: 0.012, high: 0.005 };   // share of pixels in the box that must change
+
 /* ---------- state ---------- */
-let stream = null, running = false, frames = [], pending = 0, lastCap = 0, shown = null, decoding = false, wakeLock = null;
+let stream = null, running = false, wakeLock = null;
+let frames = [], pending = 0, lastCap = 0;
+let shown = null, decoding = false;
+// auto replay
+let prevLuma = null, base = 0.002, hotRun = 0, ev = null, cooldownUntil = 0, lastScore = 0;
+let clip = null, loopT0 = 0, pitchNo = 0, editingZone = false;
 
 /* ---------- camera ---------- */
 async function openCamera() {
@@ -228,6 +291,7 @@ async function openCamera() {
 }
 async function keepAwake() { try { if ("wakeLock" in navigator && document.visibilityState === "visible") wakeLock = await navigator.wakeLock.request("screen"); } catch {} }
 
+function resetRun() { frames = []; shown = null; prevLuma = null; hotRun = 0; ev = null; clip = null; pitchNo = 0; cooldownUntil = 0; vctx.clearRect(0, 0, view.width, view.height); }
 async function start() {
   const err = $("#err"); err.hidden = true;
   if (inFrame) return;
@@ -238,78 +302,216 @@ async function start() {
     err.textContent = e && e.name === "NotAllowedError" ? "Camera access is blocked. Allow the camera for this site in your browser settings, then press play again." : (e && e.message) || "Couldn't open the camera.";
     sync(); return;
   }
-  frames = []; shown = null; running = true;
-  vctx.clearRect(0, 0, view.width, view.height);
+  resetRun(); running = true;
   $("#idle").hidden = true; keepAwake(); sync(); poke();
 }
 function stop() {
-  running = false; frames = []; shown = null;
-  vctx.clearRect(0, 0, view.width, view.height);
+  running = false; resetRun(); endZoneEdit();
   if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
-  $("#idle").hidden = false; $("#wait").hidden = true;
+  $("#idle").hidden = false; $("#wait").hidden = true; $("#watching").hidden = true;
   showUI(); sync();
   try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch {}
 }
 const toggle = () => (running ? stop() : start());
 
-/* ---------- delay loop ---------- */
+/* ---------- capture ---------- */
+function capture(now) {
+  if (now - lastCap < 1000 / 30 - 3 || pending >= 4) return false;
+  lastCap = now;
+  const w = Math.min(1280, cam.videoWidth), h = Math.round((w * cam.videoHeight) / cam.videoWidth);
+  if (cap.width !== w || cap.height !== h) { cap.width = w; cap.height = h; }
+  cctx.drawImage(cam, 0, 0, w, h);
+  pending++;
+  const t = now;
+  cap.toBlob((b) => { pending--; if (!b || !running) return; frames.push({ t, blob: b, w, h }); if (frames.length > 1 && frames[frames.length - 2].t > t) frames.sort((x, y) => x.t - y.t); }, "image/jpeg", 0.8);
+  return true;
+}
+function prune(now, keepMs) { let cut = 0; while (cut < frames.length && frames[cut].t < now - keepMs) cut++; if (cut) frames.splice(0, cut); }
+function frameAt(list, t) { let lo = 0, hi = list.length - 1, idx = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (list[m].t <= t) { idx = m; lo = m + 1; } else hi = m - 1; } return idx >= 0 ? list[idx] : null; }
+function decode(blob) {
+  if (window.createImageBitmap) return createImageBitmap(blob);
+  return new Promise((res, rej) => { const i = new Image(), u = URL.createObjectURL(blob); i.onload = () => { URL.revokeObjectURL(u); res(i); }; i.onerror = rej; i.src = u; });
+}
+function show(f) {
+  if (!f || f === shown || decoding) return;
+  decoding = true;
+  decode(f.blob).then((img) => {
+    if (running) { if (view.width !== f.w || view.height !== f.h) { view.width = f.w; view.height = f.h; } vctx.drawImage(img, 0, 0, f.w, f.h); shown = f; }
+    if (img.close) img.close();
+  }).catch(() => {}).finally(() => { decoding = false; });
+}
+function showLive() {
+  const w = cap.width || cam.videoWidth, h = cap.height || cam.videoHeight;
+  if (!w) return;
+  if (view.width !== w || view.height !== h) { view.width = w; view.height = h; }
+  vctx.drawImage(cam, 0, 0, w, h); shown = null;
+}
+
+/* ---------- pitch detection ---------- */
+function motion() {
+  const vw = cam.videoWidth, vh = cam.videoHeight;
+  const mw = 96, mh = Math.max(1, Math.round((96 * vh) / vw));
+  if (mot.width !== mw || mot.height !== mh) { mot.width = mw; mot.height = mh; prevLuma = null; }
+  mctx.drawImage(cam, 0, 0, mw, mh);
+  const d = mctx.getImageData(0, 0, mw, mh).data;
+  const z = P.zone;
+  const x0 = Math.floor(z.x * mw), x1 = Math.ceil((z.x + z.w) * mw), y0 = Math.floor(z.y * mh), y1 = Math.ceil((z.y + z.h) * mh);
+  const luma = new Uint8Array(mw * mh);
+  for (let i = 0, p = 0; i < luma.length; i++, p += 4) luma[i] = (d[p] * 77 + d[p + 1] * 150 + d[p + 2] * 29) >> 8;
+  let changed = 0, n = 0;
+  if (prevLuma) {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = y * mw + x; n++; if (Math.abs(luma[i] - prevLuma[i]) > 24) changed++; }
+  }
+  prevLuma = luma;
+  return n ? changed / n : 0;
+}
+function trigger() { return Math.max(SENS[P.sens] || SENS.med, base * 3); }
+function detect(now) {
+  const s = motion(); lastScore = s;
+  const trig = trigger();
+  if (editingZone) { updateMeter(s, trig); return; }
+  if (!ev) {
+    if (s < trig) base = base * 0.97 + s * 0.03;
+    if (now < cooldownUntil) { hotRun = 0; return; }
+    hotRun = s > trig ? hotRun + 1 : 0;
+    if (hotRun >= 2) { ev = { start: now - 70, last: now, end: 0 }; hotRun = 0; }
+    return;
+  }
+  if (!ev.end) {
+    if (s > trig * 0.5) ev.last = now;
+    if (now - ev.last > 600 || now - ev.start > 5000) ev.end = Math.min(ev.last + 900, ev.start + 6000);
+    return;
+  }
+  if (now >= ev.end) {
+    const e = ev; ev = null; cooldownUntil = now + 500;
+    if (e.last - e.start < 120) return;           // a flicker, not a pitch
+    makeClip(e.start - 1200, e.end, true);
+  }
+}
+function makeClip(from, to, auto) {
+  const part = frames.filter((f) => f.t >= from && f.t <= to);
+  if (part.length < 8) { if (!auto) toast("Not enough video yet. Try again in a second."); return; }
+  clip = part; loopT0 = performance.now(); pitchNo++;
+  $("#watching").hidden = true;
+  sync();
+}
+$("#grabBtn").onclick = () => {
+  if (!running) { toast("Press play first."); return; }
+  const now = performance.now(); makeClip(now - 4000, now, false); poke();
+};
+
+/* ---------- main loop ---------- */
 function tick() {
   const now = performance.now();
   if (running && stream && cam.readyState >= 2 && cam.videoWidth) {
-    if (now - lastCap >= 1000 / 30 - 3 && pending < 4) {
-      lastCap = now;
-      const w = Math.min(1280, cam.videoWidth), h = Math.round((w * cam.videoHeight) / cam.videoWidth);
-      if (cap.width !== w || cap.height !== h) { cap.width = w; cap.height = h; }
-      cctx.drawImage(cam, 0, 0, w, h);
-      pending++;
-      const t = now;
-      cap.toBlob((b) => { pending--; if (!b || !running) return; frames.push({ t, blob: b, w, h }); if (frames.length > 1 && frames[frames.length - 2].t > t) frames.sort((x, y) => x.t - y.t); }, "image/jpeg", 0.8);
-    }
-    const keep = (P.delay + 1.5) * 1000;
-    let cut = 0; while (cut < frames.length && frames[cut].t < now - keep) cut++;
-    if (cut) frames.splice(0, cut);
-
-    const buffered = frames.length ? (now - frames[0].t) / 1000 : 0;
-    const waiting = !shown && buffered < P.delay;
-    $("#wait").hidden = !waiting;
-    if (waiting) $("#waitNum").textContent = Math.max(1, Math.ceil(P.delay - buffered));
-
-    const target = now - P.delay * 1000;
-    let lo = 0, hi = frames.length - 1, idx = -1;
-    while (lo <= hi) { const m = (lo + hi) >> 1; if (frames[m].t <= target) { idx = m; lo = m + 1; } else hi = m - 1; }
-    const f = idx >= 0 ? frames[idx] : null;
-    if (f && f !== shown && !decoding) {
-      decoding = true;
-      const done = (img) => {
-        if (running) {
-          if (view.width !== f.w || view.height !== f.h) { view.width = f.w; view.height = f.h; }
-          vctx.drawImage(img, 0, 0, f.w, f.h); shown = f;
-        }
-        if (img.close) img.close();
-      };
-      (window.createImageBitmap ? createImageBitmap(f.blob) : new Promise((res, rej) => { const i = new Image(), u = URL.createObjectURL(f.blob); i.onload = () => { URL.revokeObjectURL(u); res(i); }; i.onerror = rej; i.src = u; }))
-        .then(done).catch(() => {}).finally(() => { decoding = false; });
+    const captured = capture(now);
+    if (P.mode === "delay") {
+      prune(now, (P.delay + 1.5) * 1000);
+      const buffered = frames.length ? (now - frames[0].t) / 1000 : 0;
+      const waiting = !shown && buffered < P.delay;
+      $("#wait").hidden = !waiting; $("#watching").hidden = true;
+      if (waiting) $("#waitNum").textContent = Math.max(1, Math.ceil(P.delay - buffered));
+      show(frameAt(frames, now - P.delay * 1000));
+    } else {
+      prune(now, 9000);
+      $("#wait").hidden = true;
+      if (captured) detect(now);
+      if (editingZone || !clip) { showLive(); $("#watching").hidden = editingZone || !!clip; }
+      else {
+        const first = clip[0].t, last = clip[clip.length - 1].t, len = last - first;
+        let el = (now - loopT0) * P.speed;
+        if (el > len + P.gap * 1000 * P.speed) { loopT0 = now; el = 0; }
+        show(frameAt(clip, first + Math.min(el, len)));
+      }
+      updateStatus();
     }
   }
+  if (editingZone) placeZone();
   requestAnimationFrame(tick);
 }
 
+/* ---------- detection area editor ---------- */
+function videoRect() {
+  const W = stageEl.clientWidth, H = stageEl.clientHeight, vw = cam.videoWidth || 16, vh = cam.videoHeight || 9;
+  const s = P.fill ? Math.max(W / vw, H / vh) : Math.min(W / vw, H / vh);
+  const w = vw * s, h = vh * s;
+  return { left: (W - w) / 2, top: (H - h) / 2, w, h };
+}
+function placeZone() {
+  const r = videoRect(), z = P.zone, el = $("#zone");
+  const x = P.flip ? 1 - z.x - z.w : z.x;
+  el.style.left = r.left + x * r.w + "px"; el.style.top = r.top + z.y * r.h + "px";
+  el.style.width = z.w * r.w + "px"; el.style.height = z.h * r.h + "px";
+}
+function updateMeter(s, trig) {
+  const scale = Math.max(trig * 4, 0.02);
+  $("#meterFill").style.width = Math.min(100, (s / scale) * 100) + "%";
+  $("#meterMark").style.left = Math.min(100, (trig / scale) * 100) + "%";
+  const hot = s > trig; $("#meter").classList.toggle("hot", hot);
+  $("#zoneState").textContent = hot ? "Would start a replay" : "Quiet";
+}
+function startZoneEdit() {
+  if (!running) { toast("Press play first, then set the area."); return; }
+  if (P.mode !== "auto") { P.mode = "auto"; save(); }
+  editingZone = true; $("#settings").hidden = true; $("#zone").hidden = false; $("#zoneBar").hidden = false;
+  showUI(); sync(); placeZone();
+}
+function endZoneEdit() { if (!editingZone) return; editingZone = false; $("#zone").hidden = true; $("#zoneBar").hidden = true; prevLuma = null; base = 0.002; save(); poke(); }
+$("#zoneBtn").onclick = startZoneEdit;
+$("#zoneDone").onclick = endZoneEdit;
+(function bindZone() {
+  const el = $("#zone"), h = $("#zoneH");
+  let drag = null;
+  const begin = (e, kind) => { e.preventDefault(); e.stopPropagation(); el.setPointerCapture(e.pointerId); drag = { kind, x: e.clientX, y: e.clientY, z: { ...P.zone } }; };
+  el.addEventListener("pointerdown", (e) => begin(e, e.target === h ? "size" : "move"));
+  el.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const r = videoRect();
+    let dx = (e.clientX - drag.x) / r.w, dy = (e.clientY - drag.y) / r.h;
+    if (P.flip) dx = -dx;
+    const z = { ...drag.z };
+    if (drag.kind === "move") { z.x = Math.min(1 - z.w, Math.max(0, z.x + dx)); z.y = Math.min(1 - z.h, Math.max(0, z.y + dy)); }
+    else {
+      if (P.flip) { const nx = Math.max(0, Math.min(z.x + z.w - 0.08, z.x + dx)); z.w = z.w + (z.x - nx); z.x = nx; }
+      else z.w = Math.min(1 - z.x, Math.max(0.08, z.w + dx));
+      z.h = Math.min(1 - z.y, Math.max(0.08, z.h + dy));
+    }
+    P.zone = z; prevLuma = null;
+  });
+  const end = () => { drag = null; save(); };
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+})();
+
 /* ---------- UI ---------- */
+function updateStatus() {
+  const st = $("#status"), tx = $("#statusText");
+  st.classList.remove("on", "watch");
+  if (!running) { tx.textContent = "Ready"; return; }
+  if (P.mode === "delay") { st.classList.add("on"); tx.innerHTML = '<span class="num">' + P.delay + "s</span> behind"; return; }
+  if (editingZone) { st.classList.add("watch"); tx.textContent = "Setting area"; return; }
+  if (ev) { st.classList.add("on"); tx.textContent = (P.role === "hitter" ? "Swing" : "Pitch") + " coming"; return; }
+  if (!clip) { st.classList.add("watch"); tx.textContent = "Watching"; return; }
+  st.classList.add("on"); tx.innerHTML = 'Replay <span class="num">#' + pitchNo + "</span>";
+}
 function sync() {
   const go = $("#go");
   go.classList.toggle("on", running);
   go.setAttribute("aria-label", running ? "Stop" : "Play");
-  $("#status").classList.toggle("on", running);
-  $("#statusText").innerHTML = running ? '<span class="num">' + P.delay + "s</span> behind" : "Ready";
+  const auto = P.mode === "auto";
   $("#goLabel").textContent = running ? "Tap to stop" : "Press play";
-  $("#h1Delay").textContent = secs(P.delay);
-  const r = ROLE[P.role] || ROLE.catcher;
-  $("#idleCopy").textContent = r.idle.replace("a moment ago", secs(P.delay) + " ago");
-  $("#setupCopy").textContent = r.setup;
+  $("#delays").hidden = auto; $("#autorow").hidden = !auto;
+  $("#grabBtn").disabled = !running;
+  $("#idleTitle").innerHTML = auto ? (P.role === "hitter" ? "Every swing, <em>replayed</em>" : "Every pitch, <em>replayed</em>") : "See it <em>" + secs(P.delay) + "</em> later";
+  $("#idleCopy").textContent = (auto ? COPY.auto : COPY.delay)[P.role].replace("{d}", secs(P.delay));
+  $("#setupCopy").textContent = COPY.setup[P.role];
+  $("#watching span").textContent = P.role === "hitter" ? "Watching for the first swing" : "Watching for the first pitch";
   view.classList.toggle("mirror", P.flip);
-  $("#stage").classList.toggle("fill", P.fill);
+  stageEl.classList.toggle("fill", P.fill);
   [...$("#delays").children].forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.v) === P.delay)));
+  [...$("#modes").children].forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === P.mode)));
+  [...$("#speeds").children].forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.v) === P.speed)));
   segs.forEach((f) => f());
+  updateStatus();
   if (inFrame) {
     go.disabled = true; go.style.opacity = ".4";
     $("#goLabel").textContent = "Opens on its own link";
@@ -317,10 +519,20 @@ function sync() {
     $("#idleCopy").textContent = "The camera can't run inside this preview. Open Backstop on its own link to use it on a phone, iPad or Mac.";
   }
 }
+for (const [v, l] of [["auto", "Auto replay"], ["delay", "Delay"]]) {
+  const b = document.createElement("button"); b.textContent = l; b.dataset.v = v;
+  b.onclick = () => { if (P.mode === v) return; P.mode = v; save(); endZoneEdit(); const r = running; if (r) resetRun(); sync(); poke(); };
+  $("#modes").appendChild(b);
+}
 for (const d of [1, 2, 3, 4, 5, 8, 10]) {
   const b = document.createElement("button"); b.textContent = d + "s"; b.dataset.v = d;
   b.onclick = () => { P.delay = d; shown = null; save(); sync(); poke(); };
   $("#delays").appendChild(b);
+}
+for (const [v, l] of [[1, "1×"], [0.5, "½×"], [0.25, "¼×"]]) {
+  const b = document.createElement("button"); b.textContent = l; b.dataset.v = v;
+  b.onclick = () => { P.speed = v; loopT0 = performance.now(); save(); sync(); poke(); };
+  $("#speeds").appendChild(b);
 }
 const segs = [];
 function seg(sel, opts, get, set) {
@@ -333,6 +545,9 @@ function seg(sel, opts, get, set) {
   segs.push(() => [...el.children].forEach((x, i) => x.setAttribute("aria-pressed", String(get() === opts[i][0]))));
 }
 seg("#segRole", [["catcher", "Catcher"], ["hitter", "Hitter"]], () => P.role, (x) => (P.role = x));
+seg("#segSens", [["low", "Low"], ["med", "Medium"], ["high", "High"]], () => P.sens, (x) => (P.sens = x));
+seg("#segSens2", [["low", "Low"], ["med", "Med"], ["high", "High"]], () => P.sens, (x) => (P.sens = x));
+seg("#segGap", [[0, "None"], [0.5, "½ s"], [1, "1 s"], [2, "2 s"]], () => P.gap, (x) => (P.gap = x));
 seg("#segCam", [["environment", "Back"], ["user", "Front"]], () => P.facing, (x) => setFacing(x));
 seg("#segFlip", [[false, "Off"], [true, "On"]], () => P.flip, (x) => (P.flip = x));
 seg("#segFit", [[false, "Fit"], [true, "Fill"]], () => P.fill, (x) => (P.fill = x));
@@ -340,15 +555,14 @@ seg("#segFit", [[false, "Fit"], [true, "Fill"]], () => P.fill, (x) => (P.fill = 
 async function setFacing(x) {
   P.facing = x; save();
   if (!running) { toast(x === "user" ? "Front camera" : "Back camera"); return; }
-  try { await openCamera(); frames = []; shown = null; } catch { toast("Couldn't switch cameras."); }
+  try { await openCamera(); resetRun(); } catch { toast("Couldn't switch cameras."); }
 }
 $("#flipCam").onclick = () => { setFacing(P.facing === "user" ? "environment" : "user"); sync(); poke(); };
 $("#go").onclick = toggle;
-$("#setBtn").onclick = () => { $("#settings").hidden = false; };
-$("#closeSet").onclick = () => { $("#settings").hidden = true; };
-$("#settings").addEventListener("click", (e) => { if (e.target.id === "settings") $("#settings").hidden = true; });
+$("#setBtn").onclick = () => { $("#settings").hidden = false; showUI(); };
+$("#closeSet").onclick = () => { $("#settings").hidden = true; poke(); };
+$("#settings").addEventListener("click", (e) => { if (e.target.id === "settings") { $("#settings").hidden = true; poke(); } });
 
-const stageEl = $("#stage");
 const canFs = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
 if (!canFs || inFrame) $("#fsBtn").hidden = true;
 $("#fsBtn").onclick = () => {
@@ -362,17 +576,18 @@ $("#fsBtn").onclick = () => {
 /* auto-hide controls while running */
 let hideT;
 function showUI() { stageEl.classList.remove("hideui"); clearTimeout(hideT); }
-function poke() { showUI(); if (running) hideT = setTimeout(() => { if (running && $("#settings").hidden) stageEl.classList.add("hideui"); }, 3500); }
-stageEl.addEventListener("pointerdown", (e) => { const hidden = stageEl.classList.contains("hideui"); poke(); if (hidden) { e.preventDefault(); e.stopPropagation(); } }, true);
-stageEl.addEventListener("click", (e) => { if (stageEl.dataset.swallow) { e.stopPropagation(); delete stageEl.dataset.swallow; } }, true);
+function poke() { showUI(); if (running) hideT = setTimeout(() => { if (running && $("#settings").hidden && !editingZone) stageEl.classList.add("hideui"); }, 3500); }
+stageEl.addEventListener("pointerdown", () => poke(), true);
 
 document.addEventListener("keydown", (e) => {
   if (e.code === "Space") { e.preventDefault(); toggle(); }
   else if (e.key === "f" || e.key === "F") $("#fsBtn").click();
-  else if (e.key === "Escape") $("#settings").hidden = true;
+  else if (e.key === "r" || e.key === "R") $("#grabBtn").click();
+  else if (e.key === "Escape") { $("#settings").hidden = true; endZoneEdit(); }
   poke();
 });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && running) stop(); });
+window.addEventListener("resize", () => { if (editingZone) placeZone(); });
 
 sync();
 requestAnimationFrame(tick);
