@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Backstop</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#0b0f0d"><title>Backstop</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -87,6 +87,7 @@ header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify
   background: var(--clay); color: var(--ink-on-clay); font: 700 19px/1 var(--display); letter-spacing: .05em; text-transform: uppercase; cursor: pointer;
 }
 .cta:active { background: var(--clay-deep); }
+a.cta { text-decoration: none; }
 .cta input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .btn { padding: 9px 13px; border-radius: 10px; background: rgba(255,255,255,.07); font: 600 14px/1 var(--body); white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; }
 .btn:active { background: rgba(255,255,255,.15); }
@@ -187,6 +188,8 @@ aside h2 span { color: var(--muted); font-size: 16px; margin-left: 6px; }
             <h2>Record a rep, watch it right away</h2>
             <p>Set the device on a tripod or fence mount 10 to 15 feet off the first-base or third-base side, at about chest height. Every rep you record replays on a loop as soon as it stops.</p>
             <button class="cta" id="camOn">Turn on camera</button>
+            <a class="cta" id="openHosted" href="https://jacksoncharney22-pitching.github.io/backstop/" target="_blank" rel="noopener" hidden>Open the recording app</a>
+            <p class="hint" id="hostedNote" hidden>Recording needs the camera, which only works on the app's own link: jacksoncharney22-pitching.github.io/backstop</p>
             <p class="err" id="camErr" hidden></p>
           </div>
         </div>
@@ -271,6 +274,7 @@ aside h2 span { color: var(--muted); font-size: 16px; margin-left: 6px; }
       </div>
       <div class="list" id="list"></div>
       <p class="hint">Reps stay in this browser on this device. Use Save rep to keep a copy in Photos or Files.</p>
+      <p class="hint">Recording app: <a href="https://jacksoncharney22-pitching.github.io/backstop/" target="_blank" rel="noopener" style="color: var(--clay)">jacksoncharney22-pitching.github.io/backstop</a></p>
     </aside>
   </div>
 </div>
@@ -375,6 +379,7 @@ function camLost() {
 }
 async function keepAwake() { try { if ("wakeLock" in navigator && document.visibilityState === "visible") wakeLock = await navigator.wakeLock.request("screen"); } catch {} }
 $("#camOn").onclick = camOn;
+if (inFrame) { $("#camOn").hidden = true; $("#openHosted").hidden = false; $("#hostedNote").hidden = false; $("#recHint").textContent = "Recording works in the recording app. Use the button above to open it."; }
 
 function recLenSec() { return P.len > 0 ? P.len : (hfActive ? 8 : 0); }
 function syncRec() {
