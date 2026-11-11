@@ -55,7 +55,12 @@ header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify
 .stage { position: relative; aspect-ratio: 16 / 9; min-height: 300px; max-height: 72vh; width: 100%; background: #000; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); }
 @media (orientation: portrait) and (max-width: 700px) { .stage { aspect-ratio: 3 / 4; } }
 .view { position: absolute; inset: 0; }
-.view video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+.view video, .view canvas { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+.stage:fullscreen { max-height: none; border-radius: 0; border: 0; aspect-ratio: auto; }
+.stage:-webkit-full-screen { max-height: none; border-radius: 0; border: 0; aspect-ratio: auto; }
+#dPlay { width: 84px; height: 84px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--fg); color: var(--bg); }
+#dPlay svg { width: 34px; height: 34px; }
+#dPlay:disabled { opacity: .4; cursor: default; }
 .mirror { transform: scaleX(-1); }
 .chip {
   position: absolute; top: 12px; left: 12px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 999px;
@@ -170,7 +175,8 @@ aside h2 span { color: var(--muted); font-size: 16px; margin-left: 6px; }
     </div>
     <button id="hfStop" hidden><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect width="14" height="14" rx="2" fill="currentColor"/></svg>Stop hands-free</button>
     <div class="tabs" role="group" aria-label="Mode">
-      <button id="tabCam" aria-pressed="true">Record</button>
+      <button id="tabDel" aria-pressed="true">Delay</button>
+      <button id="tabCam" aria-pressed="false">Record</button>
       <button id="tabRep" aria-pressed="false">Replay</button>
     </div>
   </header>
@@ -178,8 +184,22 @@ aside h2 span { color: var(--muted); font-size: 16px; margin-left: 6px; }
   <div class="main">
     <section class="col">
       <div class="stage">
+        <!-- live delay -->
+        <div class="view" id="delView">
+          <canvas id="dview"></canvas>
+          <div class="chip" id="delChip" hidden><span class="dot"></span><span id="delText">2.0 s behind</span></div>
+          <div class="big" id="delWait" hidden><b id="delNum">2</b><span>Replay starts in</span></div>
+          <div class="empty" id="delOff">
+            <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 10h48v22L32 56 8 32z" fill="none" stroke="#eef2ec" stroke-width="4" stroke-linejoin="round"/><circle cx="32" cy="30" r="7" fill="#d9864f"/></svg>
+            <h2 id="delTitle">Press play to watch yourself 2 seconds behind</h2>
+            <p>The screen keeps showing what happened a moment ago, so you can catch the pitch, look up and see the rep. It runs until you press stop.</p>
+            <button class="cta" id="dPlay2">Play</button>
+            <a class="cta" id="openHosted2" href="https://jacksoncharney22-pitching.github.io/backstop/" target="_blank" rel="noopener" hidden>Open the recording app</a>
+            <p class="err" id="delErr" hidden></p>
+          </div>
+        </div>
         <!-- camera -->
-        <div class="view" id="camView">
+        <div class="view" id="camView" hidden>
           <video id="live" playsinline muted autoplay></video>
           <div class="chip" id="liveChip" hidden><span class="dot"></span><span id="liveText">Live</span></div>
           <div class="big" id="cd" hidden><b id="cdNum">3</b><span>Recording in</span></div>
@@ -207,8 +227,29 @@ aside h2 span { color: var(--muted); font-size: 16px; margin-left: 6px; }
         </div>
       </div>
 
+      <!-- delay controls -->
+      <div class="panel" id="delPanel">
+        <div class="recrow">
+          <button id="dPlay" aria-label="Play"><svg viewBox="0 0 24 24" id="dPlayIco"><path d="M7 4.5v15l13-7.5z" fill="currentColor"/></svg></button>
+          <div class="recinfo">
+            <b id="delState">Stopped</b>
+            <span class="hint" id="delHint">Press play. The camera turns on and the picture runs 2 seconds behind.</span>
+          </div>
+        </div>
+        <div class="savebar" style="border-top:0; padding-top:0">
+          <button class="btn primary" id="dSave" disabled>Save last 8 s as a rep</button>
+          <button class="btn" id="fsBtn">Full screen</button>
+          <div class="prog" id="dProg" hidden><i id="dProgFill"></i></div>
+        </div>
+        <div class="ctlgrid">
+          <div class="ctl"><span class="lbl">Delay</span><div class="seg" id="segDelay"></div></div>
+          <div class="ctl"><span class="lbl">Saved rep length</span><div class="seg" id="segDLen"></div></div>
+          <div class="ctl"><span class="lbl">Camera</span><div class="seg" id="segCam2"></div></div>
+        </div>
+      </div>
+
       <!-- record controls -->
-      <div class="panel" id="recPanel">
+      <div class="panel" id="recPanel" hidden>
         <div class="recrow">
           <button id="recBtn" aria-label="Record rep" disabled><i></i></button>
           <div class="recinfo">
@@ -292,7 +333,7 @@ const ls = {
   get(k, d) { try { const x = localStorage.getItem("backstop." + k); return x == null ? d : JSON.parse(x); } catch { return d; } },
   set(k, x) { try { localStorage.setItem("backstop." + k, JSON.stringify(x)); } catch {} },
 };
-const P = Object.assign({ speed: 1, gap: 2, mirror: false, countdown: 3, len: 8, handsFree: false, loops: 2, facing: "environment" }, ls.get("prefs3", {}));
+const P = Object.assign({ speed: 1, gap: 2, mirror: false, countdown: 3, len: 8, handsFree: false, loops: 2, facing: "environment", dDelay: 2, dLen: 8 }, ls.get("prefs3", {}));
 const savePrefs = () => ls.set("prefs3", P);
 
 const downloadsP = (window.claude && typeof window.claude.use === "function") ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
@@ -332,14 +373,17 @@ async function dbDel(id) { if (!dbOk) return; try { await dbDo("readwrite", (s) 
 
 /* ---------- state ---------- */
 let clips = [], cur = null, curUrl = null;
-let mode = "camera";
+let mode = "delay";
 let gapActive = false, gapTimer = null, wantPlay = false, dragging = null, loopsDone = 0;
 let stream = null, recorder = null, chunks = [], recStart = 0, phase = "off"; // off | idle | countdown | recording
 let cdTimer = null, recTimer = null, hfActive = false, wakeLock = null, pendingThumb = null;
 
 /* ---------- modes ---------- */
 function setMode(m) {
+  if (m !== "delay" && dRunning) dStop();
   mode = m;
+  $("#delView").hidden = m !== "delay"; $("#delPanel").hidden = m !== "delay";
+  $("#tabDel").setAttribute("aria-pressed", String(m === "delay"));
   $("#camView").hidden = m !== "camera"; $("#recPanel").hidden = m !== "camera";
   $("#repView").hidden = m !== "replay"; $("#repPanel").hidden = m !== "replay" || !cur;
   $("#tabCam").setAttribute("aria-pressed", String(m === "camera"));
@@ -348,6 +392,7 @@ function setMode(m) {
   $("#repEmpty").hidden = !!cur;
 }
 $("#tabCam").onclick = () => { setMode("camera"); };
+$("#tabDel").onclick = () => { if (phase === "recording" || phase === "countdown") { toast("Finish or stop the recording first."); return; } if (hfActive) stopHandsFree(); setMode("delay"); };
 $("#tabRep").onclick = () => { if (phase === "recording" || phase === "countdown") { toast("Finish or stop the recording first."); return; } setMode("replay"); };
 
 /* ---------- camera ---------- */
@@ -366,14 +411,19 @@ async function camOn() {
     stream.getVideoTracks()[0].addEventListener("ended", camLost);
     $("#camOff").hidden = true; $("#liveChip").hidden = false;
     phase = "idle"; syncRec(); keepAwake();
+    if (dRunning) { frames = []; dShown = null; }
+    $("#dview").classList.toggle("mirror", P.facing === "user");
+    return true;
   } catch (e) {
     err.hidden = false;
     err.textContent = inFrame ? FRAME_MSG
       : e && e.name === "NotAllowedError" ? "Camera access is blocked. Allow the camera for this site in your browser settings, then try again."
       : (e && e.message) || "Couldn't open the camera.";
+    return false;
   }
 }
 function camLost() {
+  if (dRunning) dStop();
   if (phase === "recording") stopRec();
   stream = null; phase = "off"; $("#camOff").hidden = false; $("#liveChip").hidden = true; syncRec();
 }
@@ -486,6 +536,135 @@ function stopHandsFree() {
 }
 $("#hfStop").onclick = () => { stopHandsFree(); toast("Hands-free stopped"); };
 
+/* ---------- live delay ---------- */
+const dview = $("#dview"), dctx = dview.getContext("2d");
+const cap = document.createElement("canvas"), cctx = cap.getContext("2d");
+let dRunning = false, frames = [], pendingEnc = 0, lastCap = 0, dShown = null, dDecoding = false, dStartT = 0;
+function decodeBlob(blob) {
+  if (window.createImageBitmap) return createImageBitmap(blob);
+  return new Promise((res, rej) => { const img = new Image(), u = URL.createObjectURL(blob); img.onload = () => { URL.revokeObjectURL(u); res(img); }; img.onerror = (e) => { URL.revokeObjectURL(u); rej(e); }; img.src = u; });
+}
+async function dStart() {
+  const err = $("#delErr"); err.hidden = true;
+  if (inFrame) { err.hidden = false; err.textContent = FRAME_MSG; return; }
+  if (!stream) {
+    $("#delState").textContent = "Starting camera";
+    const ok = await camOn();
+    if (!ok) { err.hidden = false; err.textContent = $("#camErr").textContent; syncDel(); return; }
+  }
+  frames = []; dShown = null; dStartT = performance.now();
+  dview.classList.toggle("mirror", P.facing === "user");
+  dRunning = true; $("#delOff").hidden = true; keepAwake(); syncDel();
+}
+function dStop() {
+  dRunning = false; frames = []; dShown = null;
+  dctx.clearRect(0, 0, dview.width, dview.height);
+  $("#delOff").hidden = false; $("#delWait").hidden = true; syncDel();
+}
+function dToggle() { if (dRunning) dStop(); else dStart(); }
+function syncDel() {
+  const s = (P.dDelay % 1 ? P.dDelay.toFixed(1) : P.dDelay) + " seconds";
+  $("#dPlay").setAttribute("aria-label", dRunning ? "Stop" : "Play");
+  $("#dPlayIco").innerHTML = dRunning ? '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>' : '<path d="M7 4.5v15l13-7.5z" fill="currentColor"/>';
+  $("#delState").textContent = dRunning ? "Running " + s + " behind" : "Stopped";
+  $("#delHint").textContent = dRunning ? "Catch, look up, watch the rep. Press stop when you're done." : "Press play. The camera turns on and the picture runs " + s + " behind.";
+  $("#delTitle").textContent = "Press play to watch yourself " + s + " behind";
+  $("#delText").textContent = P.dDelay.toFixed(1) + " s behind";
+  $("#delChip").hidden = !dRunning;
+  $("#dSave").disabled = !dRunning;
+  $("#dSave").textContent = "Save last " + P.dLen + " s as a rep";
+  if (inFrame) { $("#dPlay2").hidden = true; $("#openHosted2").hidden = false; $("#dPlay").disabled = true; $("#delHint").textContent = "The live delay needs the camera. Open the recording app to use it."; }
+}
+function dTick(now) {
+  if (!dRunning || !stream || live.readyState < 2 || !live.videoWidth) return;
+  if (now - lastCap >= 1000 / 30 - 3 && pendingEnc < 4) {
+    lastCap = now;
+    const w = Math.min(960, live.videoWidth), h = Math.round((w * live.videoHeight) / live.videoWidth);
+    if (cap.width !== w || cap.height !== h) { cap.width = w; cap.height = h; }
+    cctx.drawImage(live, 0, 0, w, h);
+    pendingEnc++;
+    const t = now;
+    cap.toBlob((b) => { pendingEnc--; if (!b || !dRunning) return; frames.push({ t, blob: b, w, h }); if (frames.length > 1 && frames[frames.length - 2].t > t) frames.sort((x, y) => x.t - y.t); }, "image/jpeg", 0.75);
+  }
+  const keep = (P.dDelay + P.dLen + 2) * 1000;
+  let cut = 0; while (cut < frames.length && frames[cut].t < now - keep) cut++;
+  if (cut) frames.splice(0, cut);
+
+  const buffered = frames.length ? (now - frames[0].t) / 1000 : 0;
+  const waiting = !dShown && buffered < P.dDelay;
+  $("#delWait").hidden = !waiting;
+  if (waiting) $("#delNum").textContent = Math.max(1, Math.ceil(P.dDelay - buffered));
+
+  const target = now - P.dDelay * 1000;
+  let lo = 0, hi = frames.length - 1, idx = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (frames[m].t <= target) { idx = m; lo = m + 1; } else hi = m - 1; }
+  const f = idx >= 0 ? frames[idx] : null;
+  if (!f || f === dShown || dDecoding) return;
+  dDecoding = true;
+  decodeBlob(f.blob).then((bmp) => {
+    if (!dRunning) return;
+    if (dview.width !== f.w || dview.height !== f.h) { dview.width = f.w; dview.height = f.h; }
+    dctx.drawImage(bmp, 0, 0, f.w, f.h); if (bmp.close) bmp.close();
+    dShown = f;
+  }).catch(() => {}).finally(() => { dDecoding = false; });
+}
+async function dSave() {
+  if (!dRunning || !dShown) { toast("Nothing on screen to save yet."); return; }
+  if (exporting) { toast("Still saving the last rep. Try again in a moment."); return; }
+  const mime = pickMime();
+  if (mime === null) { toast("This browser can't make video files. Try Safari or Chrome."); return; }
+  const end = Math.min(dShown.t + 500, performance.now()), start = end - P.dLen * 1000;
+  const part = frames.filter((f) => f.t >= start && f.t <= end);
+  if (part.length < 10) { toast("Not enough video yet. Try again in a second."); return; }
+  const name = nextName(), mirror = P.facing === "user";
+  exporting = true; toast("Saving " + name);
+  const prog = $("#dProg"), fill = $("#dProgFill"); prog.hidden = false; fill.style.width = "0%";
+  try {
+    const ec = $("#exportCanvas"), ctx = ec.getContext("2d");
+    ec.width = part[0].w; ec.height = part[0].h;
+    const first = await decodeBlob(part[0].blob); ctx.drawImage(first, 0, 0, ec.width, ec.height); if (first.close) first.close();
+    const mid = await decodeBlob(part[Math.floor(part.length / 2)].blob);
+    const tc = document.createElement("canvas"); tc.width = 320; tc.height = Math.round((320 * ec.height) / ec.width);
+    const tx = tc.getContext("2d"); if (mirror) { tx.translate(tc.width, 0); tx.scale(-1, 1); }
+    tx.drawImage(mid, 0, 0, tc.width, tc.height); if (mid.close) mid.close();
+    const thumb = tc.toDataURL("image/jpeg", 0.7);
+    const cs = ec.captureStream(30);
+    const rec = new MediaRecorder(cs, mime ? { mimeType: mime, videoBitsPerSecond: 5_000_000 } : { videoBitsPerSecond: 5_000_000 });
+    const out = []; rec.ondataavailable = (e) => { if (e.data && e.data.size) out.push(e.data); };
+    const stopped = new Promise((r) => (rec.onstop = r));
+    rec.start(500);
+    const base = part[0].t, t0 = performance.now();
+    for (let i = 0; i < part.length; i++) {
+      const img = await decodeBlob(part[i].blob);
+      const wait = (part[i].t - base) - (performance.now() - t0);
+      if (wait > 0) await sleep(wait);
+      ctx.drawImage(img, 0, 0, ec.width, ec.height); if (img.close) img.close();
+      fill.style.width = Math.round(((i + 1) / part.length) * 100) + "%";
+    }
+    await sleep(120); rec.stop(); await stopped; cs.getTracks().forEach((t) => t.stop());
+    const type = (rec.mimeType || mime || "video/webm").split(";")[0];
+    const blob = new Blob(out, { type });
+    if (!blob.size) throw new Error("The video came out empty.");
+    const dur = (part[part.length - 1].t - base) / 1000;
+    const c = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, created: Date.now(), added: Date.now(), dur, a: 0, b: dur, thumb, blob, mirror };
+    clips.unshift(c); await dbPut(c); renderList();
+    if (!cur) select(c.id, false);
+    toast(name + " saved. Watch it in the Replay tab.");
+  } catch (e) { toast("Couldn't save " + name + ". " + ((e && e.message) || "")); }
+  finally { exporting = false; prog.hidden = true; }
+}
+$("#dPlay").onclick = dToggle;
+$("#dPlay2").onclick = dStart;
+$("#dSave").onclick = dSave;
+const stageEl = document.querySelector(".stage");
+if (!(stageEl.requestFullscreen || stageEl.webkitRequestFullscreen)) $("#fsBtn").hidden = true;
+$("#fsBtn").onclick = () => {
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else { const r = (stageEl.requestFullscreen || stageEl.webkitRequestFullscreen).call(stageEl); if (r && r.catch) r.catch(() => {}); }
+  } catch {}
+};
+
 /* ---------- adding videos ---------- */
 function probe(file) {
   return new Promise((res, rej) => {
@@ -588,6 +767,7 @@ function cancelGap() { gapActive = false; clearTimeout(gapTimer); $("#gap").hidd
 function replay() { if (!cur) return; v.currentTime = A(); v.playbackRate = P.speed; v.play().catch(() => {}); syncPlay(); }
 
 function loop() {
+  if (mode === "delay") dTick(performance.now());
   if (cur && mode === "replay" && !dragging && wantPlay && !gapActive && v.readyState >= 1) {
     if (v.ended || v.currentTime >= B() - 0.03) startGap();
     else if (v.currentTime < A() - 0.05) v.currentTime = A();
@@ -679,6 +859,9 @@ seg("#segLen", [[0, "Tap to stop"], [5, "5s"], [8, "8s"], [12, "12s"], [15, "15s
 seg("#segHf", [[false, "Off"], [true, "On"]], () => P.handsFree, (x) => { P.handsFree = x; if (!x && hfActive) stopHandsFree(); syncRec(); });
 seg("#segLoops", [[1, "1"], [2, "2"], [3, "3"], [5, "5"]], () => P.loops, (x) => { P.loops = x; });
 seg("#segCam", [["environment", "Back"], ["user", "Front"]], () => P.facing, (x) => { P.facing = x; if (stream && phase === "idle") camOn(); });
+seg("#segCam2", [["environment", "Back"], ["user", "Front"]], () => P.facing, (x) => { P.facing = x; if (stream && phase === "idle") camOn(); });
+seg("#segDelay", [[1, "1s"], [2, "2s"], [3, "3s"], [5, "5s"], [8, "8s"], [10, "10s"]], () => P.dDelay, (x) => { P.dDelay = x; dShown = null; syncDel(); });
+seg("#segDLen", [[5, "5s"], [8, "8s"], [12, "12s"]], () => P.dLen, (x) => { P.dLen = x; syncDel(); });
 seg("#segGap1", [[0, "None"], [1, "1s"], [2, "2s"], [3, "3s"], [5, "5s"]], () => P.gap, (x) => { P.gap = x; });
 seg("#segGap2", [[0, "None"], [1, "1s"], [2, "2s"], [3, "3s"], [5, "5s"]], () => P.gap, (x) => { P.gap = x; });
 seg("#segSpeed", [[0.25, "¼×"], [0.5, "½×"], [1, "1×"]], () => P.speed, (x) => { P.speed = x; v.playbackRate = x; syncPlay(); });
@@ -799,6 +982,11 @@ window.addEventListener("drop", (e) => { e.preventDefault(); dragDepth = 0; app.
 
 document.addEventListener("keydown", (e) => {
   if (e.target.id === "clipName" || (e.target.classList && e.target.classList.contains("handle"))) return;
+  if (mode === "delay") {
+    if (e.code === "Space") { e.preventDefault(); dToggle(); }
+    else if (e.key === "s" || e.key === "S") dSave();
+    return;
+  }
   if (mode === "camera") {
     if (e.code === "Space" || e.key === "r" || e.key === "R") { e.preventDefault(); recTap(); }
     return;
@@ -812,7 +1000,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") { if (phase === "recording") stopRec(); if (phase === "countdown") cancelCountdown(); hfActive = false; syncRec(); }
+  if (document.visibilityState === "hidden") { if (dRunning) dStop(); if (phase === "recording") stopRec(); if (phase === "countdown") cancelCountdown(); hfActive = false; syncRec(); }
   else { keepAwake(); const tr = stream && stream.getVideoTracks()[0]; if (stream && (!tr || tr.readyState === "ended")) camLost(); }
 });
 
@@ -821,9 +1009,9 @@ document.addEventListener("visibilitychange", () => {
   clips.sort((x, y) => y.added - x.added);
   renderList();
   if (clips.length) select(clips[0].id, false);
-  setMode("camera");
+  setMode(mode);
 })();
-setMode("camera"); syncRec(); syncPlay();
+setMode("delay"); syncRec(); syncPlay(); syncDel();
 requestAnimationFrame(loop);
 })();
 </script>
