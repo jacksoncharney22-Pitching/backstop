@@ -42,6 +42,7 @@ header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify
 .brand svg { width: 38px; height: 38px; flex: none; }
 .brand h1 { margin: 0; font: 700 34px/0.9 var(--display); letter-spacing: .03em; text-transform: uppercase; }
 .brand p { margin: 2px 0 0; color: var(--muted); font: 600 13px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; }
+.role button { padding: 8px 12px; font-size: 15px; }
 .tabs { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
 .tabs button { padding: 9px 16px; border-radius: 10px; font: 700 17px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .tabs button[aria-pressed="true"] { background: var(--panel-2); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line); }
@@ -171,8 +172,9 @@ aside h2 span { color: var(--muted); font-size: 16px; margin-left: 6px; }
   <header>
     <div class="brand">
       <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 10h48v22L32 56 8 32z" fill="none" stroke="#eef2ec" stroke-width="4" stroke-linejoin="round"/><circle cx="32" cy="30" r="7" fill="#d9864f"/></svg>
-      <div><h1>Backstop</h1><p>Catching replay</p></div>
+      <div><h1>Backstop</h1><p id="roleSub">Catching replay</p></div>
     </div>
+    <div class="seg role" id="segRole" role="group" aria-label="Who is training"></div>
     <button id="hfStop" hidden><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect width="14" height="14" rx="2" fill="currentColor"/></svg>Stop hands-free</button>
     <div class="tabs" role="group" aria-label="Mode">
       <button id="tabDel" aria-pressed="true">Delay</button>
@@ -192,7 +194,7 @@ aside h2 span { color: var(--muted); font-size: 16px; margin-left: 6px; }
           <div class="empty" id="delOff">
             <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 10h48v22L32 56 8 32z" fill="none" stroke="#eef2ec" stroke-width="4" stroke-linejoin="round"/><circle cx="32" cy="30" r="7" fill="#d9864f"/></svg>
             <h2 id="delTitle">Press play to watch yourself 2 seconds behind</h2>
-            <p>The screen keeps showing what happened a moment ago, so you can catch the pitch, look up and see the rep. It runs until you press stop.</p>
+            <p id="delCopy">The screen keeps showing what happened a moment ago, so you can catch the pitch, look up and see the rep. It runs until you press stop.</p>
             <button class="cta" id="dPlay2">Play</button>
             <a class="cta" id="openHosted2" href="https://jacksoncharney22-pitching.github.io/backstop/" target="_blank" rel="noopener" hidden>Open the recording app</a>
             <p class="err" id="delErr" hidden></p>
@@ -206,7 +208,7 @@ aside h2 span { color: var(--muted); font-size: 16px; margin-left: 6px; }
           <div class="empty" id="camOff">
             <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 10h48v22L32 56 8 32z" fill="none" stroke="#eef2ec" stroke-width="4" stroke-linejoin="round"/><circle cx="32" cy="30" r="7" fill="#d9864f"/></svg>
             <h2>Record a rep, watch it right away</h2>
-            <p>Set the device on a tripod or fence mount 10 to 15 feet off the first-base or third-base side, at about chest height. Every rep you record replays on a loop as soon as it stops.</p>
+            <p id="setupCopy">Set the device on a tripod or fence mount 10 to 15 feet off the first-base or third-base side, at about chest height. Every rep you record replays on a loop as soon as it stops.</p>
             <button class="cta" id="camOn">Turn on camera</button>
             <a class="cta" id="openHosted" href="https://jacksoncharney22-pitching.github.io/backstop/" target="_blank" rel="noopener" hidden>Open the recording app</a>
             <p class="hint" id="hostedNote" hidden>Recording needs the camera, which only works on the app's own link: jacksoncharney22-pitching.github.io/backstop</p>
@@ -246,7 +248,7 @@ aside h2 span { color: var(--muted); font-size: 16px; margin-left: 6px; }
           <div class="ctl"><span class="lbl">Saved rep length</span><div class="seg" id="segDLen"></div></div>
           <div class="ctl"><span class="lbl">Camera</span><div class="seg" id="segCam2"></div></div>
           <div class="ctl"><span class="lbl">Flip image</span><div class="seg" id="segDMirror"></div>
-            <p class="hint">Off shows you the way a coach sees you, so a righty catcher looks right-handed.</p></div>
+            <p class="hint">Off shows you the way a coach sees you, so a right-handed player looks right-handed.</p></div>
         </div>
       </div>
 
@@ -335,7 +337,7 @@ const ls = {
   get(k, d) { try { const x = localStorage.getItem("backstop." + k); return x == null ? d : JSON.parse(x); } catch { return d; } },
   set(k, x) { try { localStorage.setItem("backstop." + k, JSON.stringify(x)); } catch {} },
 };
-const P = Object.assign({ speed: 1, gap: 2, mirror: false, countdown: 3, len: 8, handsFree: false, loops: 2, facing: "environment", dDelay: 2, dLen: 8, dMirror: false }, ls.get("prefs3", {}));
+const P = Object.assign({ speed: 1, gap: 2, mirror: false, countdown: 3, len: 8, handsFree: false, loops: 2, facing: "environment", dDelay: 2, dLen: 8, dMirror: false, role: "catcher" }, ls.get("prefs3", {}));
 const savePrefs = () => ls.set("prefs3", P);
 
 const downloadsP = (window.claude && typeof window.claude.use === "function") ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
@@ -346,7 +348,7 @@ let toastT;
 function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2800); }
 const fmt = (s) => { if (!isFinite(s) || s < 0) s = 0; const m = Math.floor(s / 60); return m + ":" + (s - m * 60).toFixed(1).padStart(4, "0"); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-function nextName() { const n = ls.get("repCount", 0) + 1; ls.set("repCount", n); return "Rep " + n; }
+function nextName() { const n = ls.get("repCount", 0) + 1; ls.set("repCount", n); return (P.role === "hitter" ? "Swing " : "Rep ") + n; }
 function pickMime() {
   if (!window.MediaRecorder) return null;
   for (const m of ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {} }
@@ -569,7 +571,7 @@ function syncDel() {
   $("#dPlay").setAttribute("aria-label", dRunning ? "Stop" : "Play");
   $("#dPlayIco").innerHTML = dRunning ? '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>' : '<path d="M7 4.5v15l13-7.5z" fill="currentColor"/>';
   $("#delState").textContent = dRunning ? "Running " + s + " behind" : "Stopped";
-  $("#delHint").textContent = dRunning ? "Catch, look up, watch the rep. Press stop when you're done." : "Press play. The camera turns on and the picture runs " + s + " behind.";
+  $("#delHint").textContent = dRunning ? (P.role === "hitter" ? "Swing, look up, watch it. Press stop when you're done." : "Catch, look up, watch the rep. Press stop when you're done.") : "Press play. The camera turns on and the picture runs " + s + " behind.";
   $("#delTitle").textContent = "Press play to watch yourself " + s + " behind";
   $("#delText").textContent = P.dDelay.toFixed(1) + " s behind";
   $("#delChip").hidden = !dRunning;
@@ -863,6 +865,24 @@ seg("#segLoops", [[1, "1"], [2, "2"], [3, "3"], [5, "5"]], () => P.loops, (x) =>
 seg("#segCam", [["environment", "Back"], ["user", "Front"]], () => P.facing, (x) => { P.facing = x; if (stream && phase === "idle") camOn(); });
 seg("#segCam2", [["environment", "Back"], ["user", "Front"]], () => P.facing, (x) => { P.facing = x; if (stream && phase === "idle") camOn(); });
 seg("#segDelay", [[1, "1s"], [2, "2s"], [3, "3s"], [5, "5s"], [8, "8s"], [10, "10s"]], () => P.dDelay, (x) => { P.dDelay = x; dShown = null; syncDel(); });
+const ROLE = {
+  catcher: {
+    sub: "Catching replay",
+    del: "The screen keeps showing what happened a moment ago, so you can catch the pitch, look up and see the rep. It runs until you press stop.",
+    setup: "Set the device on a tripod or fence mount 10 to 15 feet off the first-base or third-base side, at about chest height. Every rep you record replays on a loop as soon as it stops.",
+  },
+  hitter: {
+    sub: "Hitting replay",
+    del: "The screen keeps showing what happened a moment ago, so you can take your swing, look up and see it. It runs until you press stop.",
+    setup: "Set the device on a tripod 8 to 12 feet away on your open side (first-base side for a righty, third-base side for a lefty), facing your chest at about waist height so it sees the whole swing. Every swing you record replays on a loop as soon as it stops.",
+  },
+};
+function applyRole() {
+  const r = ROLE[P.role] || ROLE.catcher;
+  $("#roleSub").textContent = r.sub; $("#delCopy").textContent = r.del; $("#setupCopy").textContent = r.setup;
+  syncDel();
+}
+seg("#segRole", [["catcher", "Catcher"], ["hitter", "Hitter"]], () => P.role, (x) => { P.role = x; applyRole(); });
 seg("#segDMirror", [[false, "Off"], [true, "On"]], () => P.dMirror, (x) => { P.dMirror = x; dview.classList.toggle("mirror", x); });
 seg("#segDLen", [[5, "5s"], [8, "8s"], [12, "12s"]], () => P.dLen, (x) => { P.dLen = x; syncDel(); });
 seg("#segGap1", [[0, "None"], [1, "1s"], [2, "2s"], [3, "3s"], [5, "5s"]], () => P.gap, (x) => { P.gap = x; });
@@ -1014,7 +1034,7 @@ document.addEventListener("visibilitychange", () => {
   if (clips.length) select(clips[0].id, false);
   setMode(mode);
 })();
-setMode("delay"); syncRec(); syncPlay(); syncDel();
+setMode("delay"); syncRec(); syncPlay(); applyRole();
 requestAnimationFrame(loop);
 })();
 </script>
