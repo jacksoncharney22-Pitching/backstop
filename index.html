@@ -182,9 +182,15 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
 
   <div id="zone" hidden><span class="tag">Detection area</span><span class="h" id="zoneH"></span></div>
   <div id="zoneBar" hidden>
-    <p>Drag the box over the glove and plate. Resize it from the corner. Movement inside the box starts a replay.</p>
-    <div class="zrow"><small>Movement</small><small id="zoneState">Quiet</small></div>
-    <div class="meter" id="meter"><i id="meterFill"></i><u id="meterMark"></u></div>
+    <p id="tuneText"></p>
+    <div id="sndTune" style="display:grid; gap:6px">
+      <div class="zrow"><small>Sound</small><small id="sndState">Quiet</small></div>
+      <div class="meter" id="sMeter"><i id="sFill"></i><u id="sMark"></u></div>
+    </div>
+    <div id="movTune" style="display:grid; gap:6px">
+      <div class="zrow"><small>Movement in the box</small><small id="zoneState">Quiet</small></div>
+      <div class="meter" id="meter"><i id="meterFill"></i><u id="meterMark"></u></div>
+    </div>
     <div class="zrow"><div class="seg" id="segSens2" style="flex:1"></div><button class="done" id="zoneDone">Done</button></div>
   </div>
 
@@ -218,9 +224,11 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--clay); outline-
     <div class="sheet-head"><h2>Settings</h2><button class="roundbtn" id="closeSet" aria-label="Close">✕</button></div>
     <div class="set"><span class="lbl">Who's training</span><div class="seg" id="segRole"></div></div>
     <h3>Auto replay</h3>
-    <div class="set"><span class="lbl">Pitch detection</span><div class="seg" id="segSens"></div>
-      <p class="hint">Raise it if pitches get missed. Lower it if replays start when nobody threw.</p></div>
-    <button class="wide" id="zoneBtn">Set detection area</button>
+    <div class="set"><span class="lbl">Start a replay when it</span><div class="seg" id="segTrig"></div>
+      <p class="hint" id="trigHint"></p></div>
+    <div class="set"><span class="lbl">Sensitivity</span><div class="seg" id="segSens"></div>
+      <p class="hint">Raise it if catches get missed. Lower it if replays start when nobody caught or hit anything.</p></div>
+    <button class="wide" id="zoneBtn">Test detection</button>
     <div class="set"><span class="lbl">Pause between replays</span><div class="seg" id="segGap"></div></div>
     <h3>Picture</h3>
     <div class="set"><span class="lbl">Camera</span><div class="seg" id="segCam"></div></div>
@@ -246,10 +254,10 @@ const ls = {
   set(k, x) { try { localStorage.setItem("backstop." + k, JSON.stringify(x)); } catch {} },
 };
 const P = Object.assign(
-  { mode: "auto", delay: 2, facing: "environment", flip: false, role: "catcher", fill: false, sens: "med", speed: 1, gap: 0.5, zone: { x: 0.2, y: 0.15, w: 0.6, h: 0.75 } },
+  { mode: "auto", trig: "sound", delay: 2, facing: "environment", flip: false, role: "catcher", fill: false, sens: "med", speed: 1, gap: 0.5, zone: { x: 0.2, y: 0.15, w: 0.6, h: 0.75 } },
   ls.get("delay", {}), ls.get("auto", {})
 );
-const save = () => { ls.set("delay", { delay: P.delay, facing: P.facing, flip: P.flip, role: P.role, fill: P.fill }); ls.set("auto", { mode: P.mode, sens: P.sens, speed: P.speed, gap: P.gap, zone: P.zone }); };
+const save = () => { ls.set("delay", { delay: P.delay, facing: P.facing, flip: P.flip, role: P.role, fill: P.fill }); ls.set("auto", { mode: P.mode, trig: P.trig, sens: P.sens, speed: P.speed, gap: P.gap, zone: P.zone }); };
 const inFrame = (() => { try { return window.self !== window.top; } catch { return true; } })();
 
 let toastT;
@@ -258,8 +266,8 @@ const secs = (d) => d + (d === 1 ? " second" : " seconds");
 
 const COPY = {
   auto: {
-    catcher: "Press play and catch. Each time a pitch comes in, Backstop replays that catch over and over until the next pitch arrives.",
-    hitter: "Press play and swing. Each time you swing, Backstop replays that swing over and over until the next one.",
+    catcher: "Press play and catch. Backstop listens for the pop of the glove and replays that catch over and over until the next one.",
+    hitter: "Press play and hit. Backstop listens for the ball off the bat and replays that swing over and over until the next one.",
   },
   delay: {
     catcher: "Press play and the screen keeps showing what happened {d} ago. Catch the pitch, look up and watch the rep.",
@@ -278,23 +286,58 @@ let frames = [], pending = 0, lastCap = 0;
 let shown = null, decoding = false;
 // auto replay
 let prevLuma = null, base = 0.002, hotRun = 0, ev = null, cooldownUntil = 0, lastScore = 0;
+let lastBusy = 0, onsetT = 0, quietBefore = 0, noise = 0.01, lastPeak = 0;
+const SOUND = { low: { abs: 0.30, ratio: 9 }, med: { abs: 0.16, ratio: 6 }, high: { abs: 0.08, ratio: 4 } };
+const STILL_MS = 600;   // the player has to be still this long before a jolt counts
 let clip = null, loopT0 = 0, pitchNo = 0, editingZone = false;
 
 /* ---------- camera ---------- */
+const wantsSound = () => P.mode === "auto" && P.trig !== "move";
+let audioCtx = null, analyser = null, abuf = null, micSrc = null, micOk = false;
+function primeAudio() {
+  try {
+    if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  } catch {}
+}
+function hookMic() {
+  micOk = false;
+  try { if (micSrc) micSrc.disconnect(); } catch {}
+  micSrc = null;
+  const tr = stream && stream.getAudioTracks()[0];
+  if (!tr || !audioCtx) return;
+  try {
+    micSrc = audioCtx.createMediaStreamSource(new MediaStream([tr]));
+    analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0;
+    abuf = new Float32Array(analyser.fftSize);
+    micSrc.connect(analyser); micOk = true;
+  } catch { micOk = false; }
+}
 async function openCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("This browser can't open the camera here. Open Backstop from its link in Safari or Chrome.");
   if (stream) stream.getTracks().forEach((t) => t.stop());
-  stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: P.facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
+  const video = { facingMode: { ideal: P.facing }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
+  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+  if (wantsSound()) {
+    try { stream = await navigator.mediaDevices.getUserMedia({ video, audio }); }
+    catch (e) {
+      stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+      if (P.trig === "sound") { P.trig = "move"; save(); }
+      toast("No microphone, so Backstop will watch for movement instead.");
+    }
+  } else stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+  hookMic();
   stream.getVideoTracks()[0].addEventListener("ended", () => { if (running) stop(); stream = null; });
   cam.srcObject = stream;
   await cam.play().catch(() => {});
 }
 async function keepAwake() { try { if ("wakeLock" in navigator && document.visibilityState === "visible") wakeLock = await navigator.wakeLock.request("screen"); } catch {} }
 
-function resetRun() { frames = []; shown = null; prevLuma = null; hotRun = 0; ev = null; clip = null; pitchNo = 0; cooldownUntil = 0; vctx.clearRect(0, 0, view.width, view.height); }
+function resetRun() { frames = []; shown = null; prevLuma = null; hotRun = 0; ev = null; lastBusy = performance.now(); clip = null; pitchNo = 0; cooldownUntil = 0; vctx.clearRect(0, 0, view.width, view.height); }
 async function start() {
   const err = $("#err"); err.hidden = true;
   if (inFrame) return;
+  primeAudio();
   $("#goLabel").textContent = "Starting camera";
   try { if (!stream) await openCamera(); }
   catch (e) {
@@ -366,27 +409,46 @@ function motion() {
   return n ? changed / n : 0;
 }
 function trigger() { return Math.max(SENS[P.sens] || SENS.med, base * 3); }
+// The moment the ball hits the glove or bat. The clip is built around it once the follow-through has been recorded.
+const PRE = () => (P.role === "hitter" ? 2000 : 1500), POST = () => (P.role === "hitter" ? 1500 : 1200);
+function hit(t, how) {
+  if (editingZone || ev || t < cooldownUntil) return;
+  ev = { t, how };
+  cooldownUntil = t + POST() + 800;
+}
+// Sound: a sharp, loud pop well above the background noise.
+function listen(now) {
+  if (!micOk || !analyser) return;
+  analyser.getFloatTimeDomainData(abuf);
+  let peak = 0; for (let i = 0; i < abuf.length; i++) { const a = Math.abs(abuf[i]); if (a > peak) peak = a; }
+  const S = SOUND[P.sens] || SOUND.med;
+  const level = Math.max(S.abs, noise * S.ratio);
+  const pop = peak > level && peak > lastPeak * 1.8;
+  if (!pop) noise = noise * 0.985 + Math.min(peak, level) * 0.015;
+  lastPeak = peak;
+  if (editingZone) { updateSoundMeter(peak, level, pop); return; }
+  if (pop && P.trig !== "move") hit(now - 20, "sound");
+}
+// Movement: a sudden jolt in the box after the player has been still (receiving the pitch, or the swing).
 function detect(now) {
   const s = motion(); lastScore = s;
   const trig = trigger();
-  if (editingZone) { updateMeter(s, trig); return; }
-  if (!ev) {
-    if (s < trig) base = base * 0.97 + s * 0.03;
-    if (now < cooldownUntil) { hotRun = 0; return; }
-    hotRun = s > trig ? hotRun + 1 : 0;
-    if (hotRun >= 2) { ev = { start: now - 70, last: now, end: 0 }; hotRun = 0; }
-    return;
+  if (s < trig * 0.5) base = base * 0.97 + s * 0.03;
+  const hot = s > trig, busy = s > trig * 0.4;
+  if (busy) {
+    if (now - lastBusy > 150) { onsetT = now - 33; quietBefore = onsetT - lastBusy; }   // a new burst of movement begins
+    lastBusy = now;
   }
-  if (!ev.end) {
-    if (s > trig * 0.5) ev.last = now;
-    if (now - ev.last > 600 || now - ev.start > 5000) ev.end = Math.min(ev.last + 900, ev.start + 6000);
-    return;
-  }
-  if (now >= ev.end) {
-    const e = ev; ev = null; cooldownUntil = now + 500;
-    if (e.last - e.start < 120) return;           // a flicker, not a pitch
-    makeClip(e.start - 1200, e.end, true);
-  }
+  hotRun = hot ? hotRun + 1 : 0;
+  // fire when the burst turns strong quickly, and only if the player was still before it
+  const sudden = hotRun === 2 && now - onsetT <= 450 && quietBefore >= STILL_MS;
+  if (editingZone) { updateMeter(s, trig, sudden); return; }
+  if (P.trig !== "sound" && sudden) hit(onsetT, "move");
+}
+function finishHit(now) {
+  if (!ev || now < ev.t + POST()) return;
+  const e = ev; ev = null;
+  makeClip(e.t - PRE(), e.t + POST(), true);
 }
 function makeClip(from, to, auto) {
   const part = frames.filter((f) => f.t >= from && f.t <= to);
@@ -415,7 +477,9 @@ function tick() {
     } else {
       prune(now, 9000);
       $("#wait").hidden = true;
-      if (captured) detect(now);
+      if (captured && P.trig !== "sound" || editingZone && captured) detect(now);
+      listen(now);
+      finishHit(now);
       if (editingZone || !clip) { showLive(); $("#watching").hidden = editingZone || !!clip; }
       else {
         const first = clip[0].t, last = clip[clip.length - 1].t, len = last - first;
@@ -443,17 +507,36 @@ function placeZone() {
   el.style.left = r.left + x * r.w + "px"; el.style.top = r.top + z.y * r.h + "px";
   el.style.width = z.w * r.w + "px"; el.style.height = z.h * r.h + "px";
 }
-function updateMeter(s, trig) {
+let flashS = 0, flashM = 0;
+function updateMeter(s, trig, sudden) {
   const scale = Math.max(trig * 4, 0.02);
   $("#meterFill").style.width = Math.min(100, (s / scale) * 100) + "%";
   $("#meterMark").style.left = Math.min(100, (trig / scale) * 100) + "%";
-  const hot = s > trig; $("#meter").classList.toggle("hot", hot);
-  $("#zoneState").textContent = hot ? "Would start a replay" : "Quiet";
+  const now = performance.now();
+  if (sudden) flashM = now + 1200;
+  const fired = now < flashM;
+  $("#meter").classList.toggle("hot", fired || s > trig);
+  $("#zoneState").textContent = fired ? "That would start a replay" : s > trig ? "Moving (needs to be still first)" : "Still";
+}
+function updateSoundMeter(peak, level, pop) {
+  const scale = Math.max(level * 2, 0.05);
+  $("#sFill").style.width = Math.min(100, (peak / scale) * 100) + "%";
+  $("#sMark").style.left = Math.min(100, (level / scale) * 100) + "%";
+  const now = performance.now();
+  if (pop) flashS = now + 1200;
+  const fired = now < flashS;
+  $("#sMeter").classList.toggle("hot", fired);
+  $("#sndState").textContent = fired ? "Pop! That would start a replay" : "Listening";
 }
 function startZoneEdit() {
   if (!running) { toast("Press play first, then set the area."); return; }
   if (P.mode !== "auto") { P.mode = "auto"; save(); }
-  editingZone = true; $("#settings").hidden = true; $("#zone").hidden = false; $("#zoneBar").hidden = false;
+  if (P.trig !== "move" && !micOk) { toast("Restart with Play so Backstop can use the microphone."); }
+  editingZone = true; $("#settings").hidden = true; $("#zoneBar").hidden = false;
+  $("#zone").hidden = P.trig === "sound"; $("#movTune").hidden = P.trig === "sound"; $("#sndTune").hidden = P.trig === "move";
+  $("#tuneText").textContent = P.trig === "sound"
+    ? (P.role === "hitter" ? "Hit a ball off the tee or clap once. The meter should jump past the line." : "Pop a ball into the glove or clap once. The meter should jump past the line.")
+    : (P.trig === "move" ? "Drag the box over the glove (or the hitting zone) and resize it from the corner. Get set and hold still, then catch or swing." : "The sound or a sudden jolt in the box will start a replay. Drag the box over the glove or hitting zone.");
   showUI(); sync(); placeZone();
 }
 function endZoneEdit() { if (!editingZone) return; editingZone = false; $("#zone").hidden = true; $("#zoneBar").hidden = true; prevLuma = null; base = 0.002; save(); poke(); }
@@ -488,8 +571,8 @@ function updateStatus() {
   st.classList.remove("on", "watch");
   if (!running) { tx.textContent = "Ready"; return; }
   if (P.mode === "delay") { st.classList.add("on"); tx.innerHTML = '<span class="num">' + P.delay + "s</span> behind"; return; }
-  if (editingZone) { st.classList.add("watch"); tx.textContent = "Setting area"; return; }
-  if (ev) { st.classList.add("on"); tx.textContent = (P.role === "hitter" ? "Swing" : "Pitch") + " coming"; return; }
+  if (editingZone) { st.classList.add("watch"); tx.textContent = "Testing"; return; }
+  if (ev) { st.classList.add("on"); tx.textContent = P.role === "hitter" ? "Got the swing" : "Got the catch"; return; }
   if (!clip) { st.classList.add("watch"); tx.textContent = "Watching"; return; }
   st.classList.add("on"); tx.innerHTML = 'Replay <span class="num">#' + pitchNo + "</span>";
 }
@@ -521,7 +604,11 @@ function sync() {
 }
 for (const [v, l] of [["auto", "Auto replay"], ["delay", "Delay"]]) {
   const b = document.createElement("button"); b.textContent = l; b.dataset.v = v;
-  b.onclick = () => { if (P.mode === v) return; P.mode = v; save(); endZoneEdit(); const r = running; if (r) resetRun(); sync(); poke(); };
+  b.onclick = async () => {
+    if (P.mode === v) return; P.mode = v; save(); endZoneEdit();
+    if (running) { resetRun(); if (wantsSound() && !micOk) { primeAudio(); try { await openCamera(); } catch {} } }
+    sync(); poke();
+  };
   $("#modes").appendChild(b);
 }
 for (const d of [1, 2, 3, 4, 5, 8, 10]) {
@@ -546,6 +633,16 @@ function seg(sel, opts, get, set) {
 }
 seg("#segRole", [["catcher", "Catcher"], ["hitter", "Hitter"]], () => P.role, (x) => (P.role = x));
 seg("#segSens", [["low", "Low"], ["med", "Medium"], ["high", "High"]], () => P.sens, (x) => (P.sens = x));
+seg("#segTrig", [["sound", "Hears it"], ["move", "Sees it"], ["either", "Either"]], () => P.trig, async (x) => {
+  const had = wantsSound(); P.trig = x; save();
+  if (running && wantsSound() && !had) { primeAudio(); try { await openCamera(); } catch {} }
+});
+segs.push(() => {
+  const h = $("#trigHint"); if (!h) return;
+  h.textContent = P.trig === "sound" ? (P.role === "hitter" ? "Listens for the crack of the ball off the bat. Works best in a quiet cage." : "Listens for the pop of the ball in the glove. Works best when nearby gloves aren't popping too.")
+    : P.trig === "move" ? "Watches the box for a sudden jolt after you've held still, like the glove snapping on the ball or the swing. Use Test detection to set the box."
+    : "Starts a replay on the sound or the jolt, whichever comes first.";
+});
 seg("#segSens2", [["low", "Low"], ["med", "Med"], ["high", "High"]], () => P.sens, (x) => (P.sens = x));
 seg("#segGap", [[0, "None"], [0.5, "½ s"], [1, "1 s"], [2, "2 s"]], () => P.gap, (x) => (P.gap = x));
 seg("#segCam", [["environment", "Back"], ["user", "Front"]], () => P.facing, (x) => setFacing(x));
